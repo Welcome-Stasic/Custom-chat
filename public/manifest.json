@@ -1,0 +1,21 @@
+{
+  "short_name": "LoveChat",
+  "name": "Наш Личный Чат",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#4A90E2",
+  "background_color": "#F8FBFF",
+  "gcm_sender_id": "103953800507"
+}
