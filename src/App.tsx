@@ -13,7 +13,6 @@ function App() {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         setUser(user);
-        // Сохраняем FCM токен пользователя
         const token = await getFCMToken();
         if (token) {
           const userTokenRef = ref(db, `users/${user.uid}/fcmToken`);

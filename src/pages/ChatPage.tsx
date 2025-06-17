@@ -78,7 +78,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const unsubscribeStatus = onValue(statusRef, (snapshot) => {
       const statuses = snapshot.val() || {};
       
-      // Находим всех онлайн-пользователей кроме текущего
       const onlineUserIds = Object.keys(statuses).filter(
         uid => statuses[uid].state === 'online' && uid !== currentUser.uid
       );
@@ -88,13 +87,11 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       if (onlineUserIds.length > 0) {
         setPartnerStatus('онлайн прямо сейчас');
       } else {
-        // Фильтруем статусы других пользователей
         const otherUsersStatuses = Object.entries(statuses)
           .filter(([uid]) => uid !== currentUser.uid)
           .map(([_, status]) => status);
         
         if (otherUsersStatuses.length > 0) {
-          // Находим последнее время активности
           const lastOnline = Math.max(...otherUsersStatuses.map((s: any) => s.lastChanged));
           setPartnerStatus(`был(а) в сети ${formatLastSeen(lastOnline)}`);
         } else {
@@ -157,12 +154,10 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         });
       });
       
-      // Сортировка по времени (старые -> новые)
       loadedMessages.sort((a, b) => parseInt(a.id) - parseInt(b.id));
       setMessages(loadedMessages);
     });
 
-    // Подписка на новые сообщения
     onChildAdded(messagesRef, handleNewMessage);
     
     return () => {
@@ -177,17 +172,14 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     });
   };
 
-  // Функция отправки уведомления
   const sendNotification = async (messageText: string) => {
     if (!currentUser) return;
     
     try {
-      // Получаем токен партнера
       const usersRef = ref(db, 'users');
       const snapshot = await get(usersRef);
       const users = snapshot.val() || {};
       
-      // Находим токен не текущего пользователя
       let partnerToken = null;
       for (const uid in users) {
         if (uid !== currentUser.uid && users[uid].fcmToken) {
@@ -201,7 +193,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         return;
       }
       
-      // Отправляем уведомление через Cloud Functions
       const response = await fetch('https://us-central1-custom-chat-5ef78.cloudfunctions.net/sendNotification', {
         method: 'POST',
         headers: {
@@ -225,14 +216,12 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const handleSendMessage = (text: string) => {
     if (!text.trim() || !currentUser) return;
     
-    // Отправляем сообщение в базу данных
     push(ref(db, 'messages'), {
       text,
       userId: currentUser.uid,
       timestamp: Date.now()
     });
     
-    // Отправляем уведомление
     sendNotification(text);
   };
 
@@ -261,7 +250,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
   };
 
-  // Отслеживание набора текста партнером
   useEffect(() => {
     if (!currentUser) return;
     
@@ -269,7 +257,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     const unsubscribeTyping = onValue(typingRef, (snapshot) => {
       const typingData = snapshot.val() || {};
       
-      // Проверяем, печатает ли кто-то кроме текущего пользователя
       const isSomeoneTyping = Object.keys(typingData)
         .filter(uid => uid !== currentUser.uid)
         .some(uid => typingData[uid]);
@@ -284,7 +271,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
 
   const handleLogout = async () => {
     try {
-      // Сбрасываем статус печати
       if (currentUser) {
         const typingRef = ref(db, `typing/${currentUser.uid}`);
         set(typingRef, false);
