@@ -1,31 +1,40 @@
-import React, { useRef, useEffect } from 'react';
+import React from 'react';
 
 interface Message {
-  id: number;
+  id: string;
   text: string;
   sender: 'me' | 'partner';
   time: string;
+  status: 'sent' | 'delivered' | 'read'; // Добавлено поле статуса
 }
 
-const MessageList: React.FC<{ messages: Message[] }> = ({ messages }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+interface MessageListProps {
+  messages: Message[];
+}
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
+const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   return (
-    <div>
+    <div className="message-list">
       {messages.map((message) => (
-        <div
-          key={message.id}
+        <div 
+          key={message.id} 
           className={`message ${message.sender === 'me' ? 'message-me' : 'message-partner'}`}
         >
-          <div>{message.text}</div>
-          <div className="message-time">{message.time}</div>
+          <div className="message-content">
+            <div className="message-text">{message.text}</div>
+            <div className="message-footer">
+              <span className="message-time">{message.time}</span>
+              {message.sender === 'me' && (
+                <span className={`message-status ${message.status}`}>
+                  {message.status === 'sent' && '✓'}
+                  {message.status === 'delivered' && '✓✓'}
+                  {message.status === 'read' && '✓✓ (прочитано)'}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       ))}
-      <div ref={messagesEndRef} />
     </div>
   );
 };

@@ -13,20 +13,17 @@ const firebaseConfig = {
   appId: "1:235456257015:web:b524c82373eff7aa222cf2"
 };
 
-// Инициализируем основное приложение
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-// Отложенная инициализация Messaging
 let messagingInstance: any = null;
 
 export const getMessagingInstance = async () => {
   if (messagingInstance) return messagingInstance;
-  
-  // Проверяем поддержку браузером
-  const isSupportedBrowser = await isSupported();
-  if (!isSupportedBrowser) {
+
+  const supported = await isSupported();
+  if (!supported) {
     console.warn("Firebase Messaging не поддерживается в этом браузере");
     return null;
   }
@@ -41,26 +38,25 @@ export const getFCMToken = async () => {
     if (!messaging) return null;
 
     const permission = await Notification.requestPermission();
-    if (permission === 'granted') {
-      const token = await getToken(messaging, { 
-        vapidKey: "BHy3jzzgsYb9Vyp4U0bWYflduhx3vaWnTbTfnDg__fuTfnasULQWAGb1wljrtDCBFR8-nT23kls_DLRaybPBrV0"
-      });
-      console.log("FCM Token:", token);
-      return token;
-    }
-  } catch (error) {
-    console.error('Ошибка получения токена:', error);
+    if (permission !== 'granted') return null;
+
+    const token = await getToken(messaging, {
+      vapidKey: "BHy3jzzgsYb9Vyp4U0bWYflduhx3vaWnTbTfnDg__fuTfnasULQWAGb1wljrtDCBFR8-nT23kls_DLRaybPBrV0"
+    });
+
+    console.log("FCM Token:", token);
+    return token;
+  } catch (e) {
+    console.error("Ошибка получения токена", e);
+    return null;
   }
-  return null;
 };
 
-export const onTokenRefresh = async (callback: (token: string | null) => void) => {
+export const onMessageListener = async (callback: (payload: any) => void) => {
   const messaging = await getMessagingInstance();
-  if (!messaging) return;
-  
+  if (!messaging) return () => {};
+
   return onMessage(messaging, (payload) => {
-    if (payload.data && payload.data.type === 'token-refresh') {
-      getFCMToken().then(callback);
-    }
+    callback(payload);
   });
 };

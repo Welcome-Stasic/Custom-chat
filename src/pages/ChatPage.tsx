@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   ref, 
   push, 
@@ -9,6 +9,7 @@ import {
   get, 
   onValue, 
   set, 
+  update, // Добавлен update
   serverTimestamp,
   onDisconnect
 } from "firebase/database";
@@ -22,6 +23,7 @@ interface Message {
   text: string;
   sender: 'me' | 'partner';
   time: string;
+  status: 'sent' | 'delivered' | 'read'; // Добавлено поле статуса
 }
 
 const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
@@ -31,7 +33,8 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const [partnerName, setPartnerName] = useState('Пользователь');
   const [isTyping, setIsTyping] = useState(false);
-  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged(user => {
@@ -48,6 +51,11 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       unsubscribeAuth();
     };
   }, []);
+
+  // Прокрутка вниз при добавлении сообщений
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const setupPresence = (userId: string) => {
     const userStatusRef = ref(db, `status/${userId}`);
@@ -134,7 +142,8 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         id: snapshot.key!,
         text: messageData.text,
         sender: isMe ? 'me' : 'partner',
-        time: formatTime(messageData.timestamp)
+        time: formatTime(messageData.timestamp),
+        status: messageData.status || 'sent' // Используем статус из БД
       }]);
     };
 
@@ -146,7 +155,8 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           id: childSnapshot.key!,
           text: messageData.text,
           sender: messageData.userId === userId ? 'me' : 'partner',
-          time: formatTime(messageData.timestamp)
+          time: formatTime(messageData.timestamp),
+          status: messageData.status || 'sent'
         });
       });
       
@@ -179,7 +189,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       const tokens: string[] = [];
       for (const uid in users) {
         if (uid !== currentUser.uid && users[uid].fcmToken) {
-          // Отправляем только тем, кто не в сети
           if (!onlineUsers.includes(uid)) {
             tokens.push(users[uid].fcmToken);
           }
@@ -211,16 +220,80 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     }
   };
 
-  const handleSendMessage = (text: string) => {
-    if (!text.trim() || !currentUser) return;
+  // Функция для обновления статуса сообщения
+  const updateMessageStatus = (messageId: string, status: 'delivered' | 'read') => {
+    // Обновляем в базе данных
+    const messageRef = ref(db, `messages/${messageId}`);
+    update(messageRef, { status });
     
-    push(ref(db, 'messages'), {
+    // Обновляем локальное состояние
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, status } : msg
+    ));
+  };
+
+  // Функция для пометки сообщений как прочитанные
+  const markMessagesAsRead = () => {
+    if (!currentUser) return;
+    
+    // Находим все непрочитанные сообщения от партнера
+    const unreadMessages = messages.filter(msg => 
+      msg.sender === 'partner' && msg.status !== 'read'
+    );
+    
+    unreadMessages.forEach(msg => {
+      updateMessageStatus(msg.id, 'read');
+    });
+  };
+
+  // Отслеживаем видимость сообщений
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          markMessagesAsRead();
+        }
+      });
+    }, {
+      threshold: 0.5 // 50% видимости
+    });
+
+    // Наблюдаем за всеми сообщениями от партнера
+    const messageElements = document.querySelectorAll('.message-partner');
+    messageElements.forEach(el => {
+      observer.observe(el);
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [messages]);
+
+  const handleSendMessage = (text: string) => {
+    if (!text.trim() || !currentUser || isSending) return;
+    
+    setIsSending(true);
+    const newMessageRef = push(ref(db, 'messages'));
+    const messageId = newMessageRef.key!;
+    
+    // Исходный статус - 'sent'
+    set(newMessageRef, {
       text,
       userId: currentUser.uid,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      status: 'sent'
+    }).then(() => {
+      // После успешной отправки, через некоторое время обновляем статус на 'delivered'
+      setTimeout(() => {
+        updateMessageStatus(messageId, 'delivered');
+      }, 1000);
+      
+      sendNotification(text);
+      setIsSending(false);
+    }).catch((error) => {
+      console.error('Ошибка отправки сообщения:', error);
+      setIsSending(false);
     });
-    
-    sendNotification(text);
   };
 
   const handleInputChange = (text: string) => {
@@ -230,21 +303,14 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     
     if (text.length > 0) {
       set(typingRef, true);
+      clearTimeout((handleInputChange as any).typingTimeout);
       
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
-      
-      const timeout = setTimeout(() => {
+      (handleInputChange as any).typingTimeout = setTimeout(() => {
         set(typingRef, false);
       }, 2000);
-      
-      setTypingTimeout(timeout);
     } else {
       set(typingRef, false);
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
+      clearTimeout((handleInputChange as any).typingTimeout);
     }
   };
 
@@ -282,7 +348,7 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   };
 
   return (
-    <div className="chat-page">
+    <div className="chat-page" style={{height: '100vh', display: 'flex', flexDirection: 'column'}}>
       <Header 
         onLogout={handleLogout} 
         partnerName={partnerName}
@@ -291,9 +357,10 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         isTyping={isTyping}
       />
       
-      <div className="chat-messages">
+      <div className="chat-messages" style={{flex: 1, overflowY: 'auto'}}>
         <div className="chat-messages-container">
           <MessageList messages={messages} />
+          <div ref={messagesEndRef} />
         </div>
       </div>
       
@@ -301,6 +368,7 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
         <MessageInput 
           onSend={handleSendMessage} 
           onChange={handleInputChange} 
+          disabled={isSending}
         />
       </div>
     </div>
