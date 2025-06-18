@@ -33,7 +33,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
 
-  // Загрузка пользователя
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged(user => {
       if (user) {
@@ -50,7 +49,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     };
   }, []);
 
-  // Настройка статуса присутствия
   const setupPresence = (userId: string) => {
     const userStatusRef = ref(db, `status/${userId}`);
     const connectedRef = ref(db, '.info/connected');
@@ -70,7 +68,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
     });
   };
 
-  // Отслеживание статусов пользователей
   useEffect(() => {
     if (!currentUser) return;
     
@@ -141,7 +138,6 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       }]);
     };
 
-    // Загрузка истории сообщений
     get(recentMessagesQuery).then((snapshot) => {
       const loadedMessages: Message[] = [];
       snapshot.forEach((childSnapshot) => {
@@ -180,16 +176,18 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
       const snapshot = await get(usersRef);
       const users = snapshot.val() || {};
       
-      let partnerToken = null;
+      const tokens: string[] = [];
       for (const uid in users) {
         if (uid !== currentUser.uid && users[uid].fcmToken) {
-          partnerToken = users[uid].fcmToken;
-          break;
+          // Отправляем только тем, кто не в сети
+          if (!onlineUsers.includes(uid)) {
+            tokens.push(users[uid].fcmToken);
+          }
         }
       }
       
-      if (!partnerToken) {
-        console.log('Токен партнера не найден');
+      if (tokens.length === 0) {
+        console.log('Нет токенов для отправки');
         return;
       }
       
@@ -199,7 +197,7 @@ const ChatPage: React.FC<{ onLogout: () => void }> = ({ onLogout }) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          token: partnerToken,
+          tokens,
           title: partnerName,
           body: messageText,
         }),

@@ -121,7 +121,8 @@ h3 {
 }
 
 .min-h-screen {
-  min-height: 100vh;
+  min-height: 100dvh;
+    max-height: 100dvh;
 }
 
 .p-4 {
@@ -190,7 +191,8 @@ h3 {
 
 /* Страница входа */
 .login-page {
-  min-height: 100vh;
+  min-height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -266,7 +268,8 @@ h3 {
 .chat-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   background-color: var(--background);
 }
 

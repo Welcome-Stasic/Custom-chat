@@ -1,6 +1,5 @@
-
-importScripts('https://www.gstatic.com/firebasejs/9.10.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/9.10.0/firebase-messaging-compat.js');
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js");
+importScripts("https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging-compat.js");
 
 const firebaseConfig = {
   apiKey: "AIzaSyALVRCMC-Cp-cjdqHg8gQcYw9-rHNh8ELY", 
@@ -18,7 +17,6 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw.js] Received background message', payload);
   
-  // Кастомные данные для уведомления
   const notificationTitle = payload.notification?.title || 'Новое сообщение';
   const notificationOptions = {
     body: payload.notification?.body || 'У вас новое сообщение в чате',
